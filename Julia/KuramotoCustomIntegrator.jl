@@ -17,7 +17,7 @@ function ConstructStatefromPhis(phis;β=pi/2)
     return u0
 end
 
-function Kuramotosystem(phis;N=length(phis), omegas = [0. for i in 1:N], α=0., β = pi/2, σ = 2.5, ϵ = 0.01)
+function Kuramotosystem(phis; N=length(phis), omegas = [0. for i in 1:N], α=0., β = pi/2, σ = 2.5, ϵ = 0.01)
     state = ConstructStatefromPhis(phis,β=β)
     return Kuramotosystem(state,N,α,β,ϵ,σ,omegas)
 end
