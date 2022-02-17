@@ -1,8 +1,7 @@
-using DifferentialEquations
+using DifferentialEquations, Plots, ColorSchemes
 using Random
 using Statistics
 using DelimitedFiles
-using Plots
 using QuadGK
 
 function SteadyClusterStateCondition(state,p,ci)
@@ -59,25 +58,6 @@ function ContOrder(theta::Number,n::Number)
         4/(theta*n)*sin(theta*n/4)
     end
 end
-function ContDerivsOLD(du,u,p::NamedTuple,t)
-    R1 = ContOrder(u,p,1)
-    R2 = ContOrder(u,p,2)
-    du[1]=1+p.σ/p.Var[1]/u[1]*(cos(u[1]*p.n[1]/4)-R1)*(u[2*p.N+1]*p.n[1]*R1*cos(p.α)+u[2*p.N+2]*p.n[2]*R2*cos(u[p.N+1]-u[p.N+2]+p.α))
-    du[2]=1+p.σ/p.Var[2]/u[2]*(cos(u[2]*p.n[2]/4)-R2)*(u[2*p.N+4]*p.n[2]*R2*cos(p.α)+u[2*p.N+3]*p.n[1]*R1*cos(u[p.N+2]-u[p.N+1]+p.α))
-    du[3]=p.mean[1]-p.σ*p.n[1]*u[2*p.N+1]*sin(p.α)*R1^2-p.σ*p.n[2]*u[p.N*2+2]*R1*R2*sin(u[p.N+1]-u[p.N+2]+p.α)
-    du[4]=p.mean[2]-p.σ*p.n[2]*u[2*p.N+4]*sin(p.α)*R2^2-p.σ*p.n[1]*u[p.N*2+3]*R1*R2*sin(u[p.N+2]-u[p.N+1]+p.α)
-    du[5]=-p.ϵ*(u[p.N*2+1]+R1*R1*sin(p.β))
-    du[8]=-p.ϵ*(u[p.N*2+4]+R2*R2*sin(p.β))
-    du[6]=-p.ϵ*(u[p.N*2+2]+R1*R2*sin(u[p.N+1]-u[p.N+2]+p.β))
-    du[7]=-p.ϵ*(u[p.N*2+3]+R1*R2*sin(u[p.N+2]-u[p.N+1]+p.β))
-    if u[1]==0
-        du[1]=1.
-    end
-    if u[2]==0
-        du[2]=1.
-    end
-    du
-end
 function ContDerivs(du,u,p::NamedTuple,t)
     R=zeros(p.N)
     du[1:end].=0
@@ -133,6 +113,15 @@ function BifurcationOrderTuple(sol,params,t::Tuple{Any,Any})
     end
     sqrt(output1),output2...
 end
+function BifurcationOrderTupleProperlyTimed(sol,params,t::Tuple{Any,Any};t_anal=1500)
+    output1=0
+    output2=zeros(params.N)
+    for i in 1:length(output2)
+        output2[i]=quadgk(x->ContOrder(2 .*sol(x),params,i),t[2]-t_anal,t[2])[1]/(t_anal)
+    end
+    output1 = quadgk(x->ContOrder(2 .*sol(x),output2,params),t[2]-t_anal,t[2])[1]/(t_anal)
+    output1,output2...
+end
 function TimeaveragedFirstOrder(sol,p,t::Tuple{<:Real,<:Real})
     quadgk(x->ContOrder(sol(x),p),t[1],t[2])[1]/(t[2]-t[1])
 end
@@ -151,59 +140,28 @@ t=(0.,500.),α=0.0*pi,Betamult=-53,β=Betamult/100*pi,filename="Ordermatrix",wig
         if i < length(Sigmas)
             params = CreateContParams(n1...,α=α,β=β,σ=Sigmas[i+1])
         end
-        #=
-        if rem(Sigmas[i],1)==0
-            writedlm(string("./",n1*50,"_",seed,"_",Sigmas[i],"_",filename,".txt"),sol)
-        end
-        =#
-        state = sol(100).+wigglesize.*rand(length(state))
+        wiggle=rand(length(state))
+        state#=[1:end#=params.N=#]=# = sol(t[2])#=[1:params.N]=#.+wigglesize.*wiggle#[1:params.N] .-wigglesize/2
+        #state[params.N+1:end] = sol(t[2])[params.N+1:end].+wigglesize.*wiggle[params.N+1:end] .-wigglesize/2
         for i in 1:params.N
             if state[i]>10.
                 state[i]=sol(0)[i]
+                #state[params.N*2+(i-1)*params.N+i]=sol(0)[params.N*2+(i-1)*params.N+i]
             end
         end
     end
     return Order, state
 end
-function CreateBifDiagram(Initialstate,n1,filepath)
-    sigmas = collect(0.:0.01:10)
-    colors = ["blue","green","red"]
-    labels=["Full System","First Cluster","Second Cluster"]
-    Order,Finalstate = ContScanthroughSigma(Initialstate, n1, BifurcationOrderTuple, β = -53*pi/100,Sigmas=sigmas)
-    for i in 1:length(Order[1])
-        plot!(sigmas,[e[i] for e in Order],c=colors[i],style=:solid,label=labels[i])
-    end
-    sigmas=collect(10:-0.01:0)
-    Order,Finalstate = ContScanthroughSigma(Finalstate, n1, BifurcationOrderTuple, β = -53*pi/100,Sigmas=sigmas)
-    for i in 1:length(Order[1])
-        plot!(sigmas,[e[i] for e in Order],c=colors[i],style=:dash,label="")
-    end
-    plot!(xlabel="Sigma",ylabel="Orderparameter")
-    savefig(filepath)
-end
-function CreateBifDiagramData(Initialstate,n1,filepath;t=(0.,500.))
-    sigmas = collect(0.:0.01:10)
-    Order,Finalstate = ContScanthroughSigma(Initialstate, n1, BifurcationOrderTuple, β = -53*pi/100,Sigmas=sigmas,t=t)
-    writedlm(filepath[1],Order)
-    sigmas=collect(10:-0.01:0)
-    Order,Finalstate = ContScanthroughSigma(Finalstate, n1, BifurcationOrderTuple, β = -53*pi/100,Sigmas=sigmas,t=t)
-    writedlm(filepath[2],Order)
-end
-function CreateBifDiagramSchar(Initialstate,n1,filepath;sigmas = collect(0:0.01:10),t=(0.,500.),wigglesize=0.01,kwargs...)
+function CreateBifDiagramSchar(Initialstate,n1,filepath;sigmas = collect(0:0.01:10),t=(0.,500.),wigglesize=0.01,measure = BifurcationOrderTupleProperlyTimed,kwargs...)
     Orders = zeros((2*length(n1),length(sigmas)+1))
     sigmasreverse = sigmas[end:-1:1]
     Orders[1:end,1]=[n1...,n1...]
     for i in 1:length(n1)
         n=n1[i]
-        Order,Finalstate = ContScanthroughSigma(Initialstate, n, BifurcationOrderTuple; β = -53*pi/100,Sigmas=sigmas,t=t,wigglesize=wigglesize,kwargs...)
+        Order,Finalstate = ContScanthroughSigma(Initialstate, n, measure; β = -53*pi/100,Sigmas=sigmas,t=t,wigglesize=wigglesize,kwargs...)
         Orders[i,2:end]=[e[1] for e in Order]
-        Order,Finalstate = ContScanthroughSigma(Finalstate, n, BifurcationOrderTuple; β = -53*pi/100,Sigmas=sigmasreverse,t=t,wigglesize=wigglesize,kwargs...)
+        Order,Finalstate = ContScanthroughSigma(Finalstate, n, measure; β = -53*pi/100,Sigmas=sigmasreverse,t=t,wigglesize=wigglesize,kwargs...)
         Orders[i+length(n1),2:end]=[e[1] for e in Order[end:-1:1]]
-        #=
-        for i in 1:1
-            plot!(sigmas,[e[i] for e in Order],c=get(ColorSchemes.bamako,n,(0.5,1.)),style=:dash,label="")
-        end
-        =#
     end
     writedlm(filepath,Orders)
 end
@@ -227,57 +185,50 @@ function CreateThreeClusterBifDiagramSchar(Initialstate,n1,filepath;sigmas = col
     end
     writedlm(filepath,Orders)
 end
-function CreateBifDiagramZoomed(Initialstate,n1,filepath)
-    sigmas = collect(0.:0.01:10)
-    labels=["Full System","First Cluster","Second Cluster"]
-    Order,Finalstate = ContScanthroughSigma(Initialstate, n1, BifurcationOrderTuple, β = -53*pi/100,Sigmas=sigmas)
-    for i in 1:length(Order[1])
-        plot!(sigmas,[e[i] for e in Order],style=:solid,label=labels[i])
+function PlotBifDiagram(Orders,sigmas;skips=1,downsweep=true,cutoff=0.01,kwargs...)
+    n=size(Orders)[1]
+    if downsweep
+        n = Int(size(Orders)[1]/2)
     end
-    sigmas=collect(10:-0.01:0)
-    Order,Finalstate = ContScanthroughSigma(Finalstate, n1, BifurcationOrderTuple, β = -53*pi/100,Sigmas=sigmas)
-    for i in 1:length(Order[1])
-        plot!(sigmas,[e[i] for e in Order],style=:dash,label=labels[i])
-    end
-    plot!(xlabel="Sigma",ylabel="2nd Orderparameter",ylim = [0.99,1])
-    savefig(filepath)
-end
-function PlotBifDiagram(Orders,sigmas;skips=1)
-    n = Int(size(Orders)[1]/2)
     for i in 1:n
         previndex = 1
         for j in (skips+1):length(sigmas)
-            if abs(Orders[i,j+skips]-Orders[i,j+skips-1])>0.01
-                plot!(sigmas[previndex:j-1],Orders[i,previndex+skips:j+skips-1],c=get(ColorSchemes.bamako,Orders[i,1],(0.5,1.0)),label="")
+            if abs(Orders[i,j+skips]-Orders[i,j+skips-1])>cutoff
+                plot!(sigmas[previndex:j-1],Orders[i,previndex+skips:j+skips-1],c=get(ColorSchemes.bamako,Orders[i,1],(0.5,1.0)),label="",kwargs...)
                 previndex = j
             end
         end
-        plot!(sigmas[previndex:end],Orders[i,previndex+skips:end],c=get(ColorSchemes.bamako,Orders[i,1],(0.5,1.0)),label=string("n_1 = ",Orders[i,1]))
+        plot!(sigmas[previndex:end],Orders[i,previndex+skips:end],c=get(ColorSchemes.bamako,Orders[i,1],(0.5,1.0)),label=string("n_1 = ",Orders[i,1]),kwargs...)
         previndex = 1
-        plot!(sigmas[1:end],Orders[i+n,skips+1:end],c=get(ColorSchemes.bamako,Orders[i+n,1],(0.5,1.0)),label="",style=:dash)
+        if downsweep
+            plot!(sigmas[1:end],Orders[i+n,skips+1:end],c=get(ColorSchemes.bamako,Orders[i+n,1],(0.5,1.0)),label="",style=:dash,kwargs...)
+        end
     end
     plot!(xlabel = "Sigma", ylabel="2nd Orderparameter")
 end
-seed = 138513#parse(Int64, ARGS[1])
-n1mult = 27#parse(Int64,ARGS[2])
+seed = 31#138513#parse(Int64, ARGS[1])
 Random.seed!(seed)
 initstate = rand(8)
-#n1=n1mult/50
-#Order,Finalstate=ContScanthroughSigma(initstate,n1,TimeaveragedFirstOrder,Sigmas=collect(0:0.01:1),filename="test2")
-#=
-for n1mult in n1mult
-    Random.seed!(seed)
-    state = rand(8)
-    state[3:4].*=2*pi
-    n1 = n1mult/50.
-    Order,Finalstate = ContScanthroughSigma(state, n1, β = -53*pi/100,Sigmas=collect(0.5:0.01:10),filename = "Upsweep")
-    open(string("./",n1mult,"_",seed,"_UpSweepOrders.txt"),"w")  do io
-        writedlm(io,Order)
+initstate[3:4].*=2*pi
+println(initstate)
+
+function CreateBifDiagramScharUpdated(Initialstate,n1,filepath,sigmastart;sigmas = collect(0:0.01:10),t=(0.,500.),wigglesize=0.01,measure = BifurcationOrderTupleProperlyTimed,kwargs...)
+    Orders = zeros((2*length(n1),length(sigmas)+1))
+    sigma1 = collect(sigmastart:sigmas[2]-sigmas[1]:sigmas[end])
+    sigma2 = collect(sigmas[1]:sigmas[2]-sigmas[1]:sigmastart)
+    sigmasreverse = sigmas[end:-1:1]
+    Orders[1:end,1]=[n1...,n1...]
+    for i in 1:length(n1)
+        n=n1[i]
+        Order,Finalstate = ContScanthroughSigma(Initialstate, n, measure; β = -53*pi/100,Sigmas=sigma1,t=t,wigglesize=wigglesize,kwargs...)
+        Orders[i,1+findfirst(isequal(sigma1[1]),sigmas):end]=[e[1] for e in Order]
+        Order,Finalstate = ContScanthroughSigma(Finalstate, n, measure; β = -53*pi/100,Sigmas=sigmasreverse,t=t,wigglesize=wigglesize,kwargs...)
+        Orders[i+length(n1),2:end]=[e[1] for e in Order[end:-1:1]]
+        Order,Finalstate = ContScanthroughSigma(Initialstate, n, measure; β = -53*pi/100,Sigmas=sigma2[end:-1:1],t=t,wigglesize=wigglesize,kwargs...)
+        Orders[i,2:1+findfirst(isequal(sigma1[1]),sigmas)]=[e[1] for e in Order]
+
     end
-    state = Finalstate
-    Order,Finalstate = ContScanthroughSigma(state,n1,β = -53*pi/100,Sigmas=collect(10:-0.01:0),filename = "Downsweep")
-    open(string("./",n1mult,"_",seed,"_DownSweepOrders.txt"),"w")  do io
-        writedlm(io,Order)
-    end
+    writedlm(filepath,Orders)
 end
-=#
+CreateBifDiagramScharUpdated(initstate,collect(0.5:0.05:0.95),"./Data/Singleruns/Orders.txt",0.5,sigmas=collect(0.:0.01:5),t=(0.,2000.),dtmax=10.10,wigglesize=0.01,measure=BifurcationOrderTupleProperlyTimed)
+#CreateBifDiagramSchar(initstate,collect(0.5:0.05:0.95),"./Data/Singleruns/OrdersShort.txt",t=(0.,1500.),sigmas=collect(0.6:-0.01:0),dtmax=10,wigglesize=0.01,measure=BifurcationOrderTupleProperlyTimed)

@@ -91,20 +91,19 @@ function OmegaPrime(Orders,p)
     end
 end
 ns = collect(0.5:0.05:0.95)
-kaputts = zeros(length(ns))
 sigmas = collect(0.5:0.01:4)
-Orders = zeros((length(ns),length(sigmas)+1))
-Orders[:,1].=ns
+Omegas2 = zeros((length(ns),length(sigmas)+1))
+Omegas2[:,1].=ns
 for i in 1:length(ns)
     for s in 1:length(sigmas)
         params = CreateContParams(ns[i],σ=sigmas[s])
         Order = SteadyStateOrders(params)
         if isnan(OmegaPrime(Order,params)[1])
-            Orders[i,s+1]=NaN
+            Omegas2[i,s+1]=0
         else
-            Orders[i,s+1]=sqrt(ns[i]^2*Order[1]^2+(1-ns[i])^2*Orders[2]^2)
+            Omegas2[i,s+1]=-minimum(OmegaPrime(Order,params))
         end
     end
 end
-writedlm("./Data/NewestAnsatzTwoClusterOrders.txt",Orders)
-plot(sigmas,transpose(Orders[:,2:end]),xlabel="Sigma",ylabel="Second Orderparameter")
+writedlm("./Data/NewestAnsatzOmegas.txt",Omegas2)
+#plot(sigmas,transpose(Orders[:,2:end]),xlabel="Sigma",ylabel="Second Orderparameter")

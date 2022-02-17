@@ -65,12 +65,15 @@ function SetupState(seed,Oszis)
     return state, omegas
 end
 
-function CalcOrderMatrix(Ordermatrix, sol, Oszis;t1=3000,t2=10000)
-    for k=1:Oszis,l=1:Oszis
-        if abs((sol(t2)[k]-sol(t1)[k])/(t2-t1)-(sol(t2)[l]-sol(t1)[l])/(t2-t1))<=0.001
-            Ordermatrix[k,l] = 1.
+function CalcOrderMatrix(Ordermatrix, sol, Oszis; t1 = 3000, t2 = 10000)
+    for k = 1:Oszis, l = 1:Oszis
+        if abs(
+            (sol(t2)[k] - sol(t1)[k]) / (t2 - t1) -
+            (sol(t2)[l] - sol(t1)[l]) / (t2 - t1),
+        ) <= 0.001
+            Ordermatrix[k, l] = 1.0
         else
-            Ordermatrix[k,l] = 0
+            Ordermatrix[k, l] = 0
         end
     end
 end

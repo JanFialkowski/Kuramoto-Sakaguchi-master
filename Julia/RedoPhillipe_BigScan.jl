@@ -4,7 +4,7 @@ using Random
 using Statistics
 
 function Derivativesphi2(dstate, system,params,t)
-    dstate[1:50] .= 0
+    dstate[1:params.N] .= 0
     sina = sin.(system[1:params.N] .+params.α)
     cosa = cos.(system[1:params.N] .+params.α)
     sin0 = sin.(system[1:params.N])

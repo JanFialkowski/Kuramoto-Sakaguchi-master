@@ -2,3 +2,13 @@
 **/DUMP
 **/*.png
 **/*.txt
+**/*.svg
+**/*.mp4
+**/*.pdf
+**/*.serialjl
+**/*.tex
+**/*.zip
+**/*.aux
+**/*.log
+**/*.gif
+**/*.gz

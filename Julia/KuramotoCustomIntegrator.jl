@@ -83,17 +83,12 @@ function CustomRK4(system, tspan; dt = 0.1, save_indices=1:system.N, save_times=
     dstate = zeros(length(system.state))
     phistep = zeros(system.N)
     phibetween = zeros(system.N)
-    save_times_iterator = 1
-    if tspan[1]∈save_times
-        save_times_iterator +=1
+    save_times_iterator = 2
+    if tspan[1]∉save_times
+        pushfirst!(save_times,tspan[1])
     end
-    if save_times_iterator==1
-        saved_stuff = (t = [tspan[1], save_times...],
-        u = zeros(length(system.state[save_indices]), length([tspan[1], save_times...])),)
-    elseif save_times_iterator==2
-        saved_stuff = (t = save_times,
-        u = zeros(length(system.state[save_indices]), length(save_times)),)
-    end
+    saved_stuff = (t = save_times,
+    u = zeros(length(system.state[save_indices]), length(save_times)),)
     saved_stuff.u[:, 1] .= system.state[save_indices]
     for i = 2:length(integrated_times)
         Derivativesphi(dstate, system)
@@ -122,9 +117,9 @@ function CustomRK4(system, tspan; dt = 0.1, save_indices=1:system.N, save_times=
                 save_times_iterator+=1
             end
         end
-        if rem(100 * (i-1), length(tspan[1]:dt:tspan[2])-1) == 0
-            println(100 * (i-1) / (length(tspan[1]:dt:tspan[2])-1))
-        end
+        #if rem(100 * (i-1), length(tspan[1]:dt:tspan[2])-1) == 0
+        #    println(100 * (i-1) / (length(tspan[1]:dt:tspan[2])-1))
+        #end
     end
     return saved_stuff
 end
